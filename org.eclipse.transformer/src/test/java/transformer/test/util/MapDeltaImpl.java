@@ -16,6 +16,7 @@ import java.lang.reflect.Array;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class MapDeltaImpl<K, V> implements Delta {
 	public static final String CLASS_NAME = MapDeltaImpl.class.getSimpleName();
@@ -212,75 +213,86 @@ public class MapDeltaImpl<K, V> implements Delta {
 	//
 
 	public void subtract(Map<K, V> finalMap, Map<K, V> initialMap) {
-		if (((finalMap == null) || finalMap.isEmpty()) && ((initialMap == null) || initialMap.isEmpty())) {
-			// Nothing to do: Both map are empty.
+		if (bothMapsAreEmpty(finalMap, initialMap)) {
+			// Nothing to do: Both maps are empty.
+			return;
+		}
 
-		} else if ((finalMap == null) || finalMap.isEmpty()) {
-			// Everything in the initial map was removed.
+		if (finalMap == null) {
 			if (removedMap != null) {
 				removedMap.putAll(initialMap);
 			}
+			return;
+		}
 
-		} else if ((initialMap == null) || initialMap.isEmpty()) {
-			// Everything in the final map was added.
+		if (initialMap == null) {
 			if (addedMap != null) {
 				addedMap.putAll(finalMap);
 			}
+			return;
+		}
 
-		} else {
-			for (Map.Entry<K, V> entry_f : finalMap.entrySet()) {
-				K key_f = entry_f.getKey();
-				V value_f = entry_f.getValue();
+		processFinalMap(finalMap, initialMap);
+		processInitialMap(finalMap, initialMap);
+	}
 
-				if (!initialMap.containsKey(key_f)) {
-					addedMap.put(key_f, value_f);
+	private boolean bothMapsAreEmpty(Map<K, V> finalMap, Map<K, V> initialMap) {
+		return (finalMap == null || finalMap.isEmpty()) && (initialMap == null || initialMap.isEmpty());
+	}
 
+	private void processFinalMap(Map<K, V> finalMap, Map<K, V> initialMap) {
+		for (Map.Entry<K, V> entry : finalMap.entrySet()) {
+			K key = entry.getKey();
+			V value_f = entry.getValue();
+
+			if (!initialMap.containsKey(key)) {
+				if (addedMap != null) {
+					addedMap.put(key, value_f);
+				}
+			} else {
+				V value_i = initialMap.get(key);
+				if (!Objects.equals(value_f, value_i)) {
+					if (changedMap != null) {
+						recordChanged(key, value_f, value_i);
+					}
 				} else {
-					V value_i = initialMap.get(key_f);
-
-					if (((value_i == null) && (value_f != null)) || ((value_i != null) && (value_f == null))
-						|| ((value_i != null) && (value_f != null) && !value_f.equals(value_i))) {
-						if (changedMap != null) {
-							recordChanged(key_f, value_f, value_i);
-						}
-					} else {
-						if (stillMap != null) {
-							recordStill(key_f, value_f);
-						}
+					if (stillMap != null) {
+						recordStill(key, value_f);
 					}
 				}
 			}
+		}
+	}
 
-			for (Map.Entry<K, V> entry_i : initialMap.entrySet()) {
-				K key_i = entry_i.getKey();
-				V value_i = entry_i.getValue();
-
-				if (!finalMap.containsKey(key_i)) {
-					addedMap.put(key_i, value_i);
-
-				} else {
-					// Changes should have already been recorded
-					// when processing the final map.
-					//
-					// Note that 'recordChanged' in this case exposes
-					// a weakness of how changes are recorded, in that
-					// that record has a bias towards the final key.
-
-					// V value_f = finalMap.get(key_f);
-
-					// if ( ((value_f == null) && (value_i != null)) ||
-					// ((value_f != null) && (value_i == null)) ||
-					// ((value_f != null) && (value_i != null) &&
-					// !value_i.equals(value_f)) ) {
-					// if ( changedMap_f != null ) {
-					// recordChanged(key_i, value_i, value_f);
-					// }
-					// } else {
-					// if ( stillMap != null ) {
-					// recordStill(initialKey, initialValue);
-					// }
-					// }
+	private void processInitialMap(Map<K, V> finalMap, Map<K, V> initialMap) {
+		for (Map.Entry<K, V> entry : initialMap.entrySet()) {
+			K key = entry.getKey();
+			if (!finalMap.containsKey(key)) {
+				if (addedMap != null) {
+					addedMap.put(key, entry.getValue());
 				}
+			} else {
+				// Changes should have already been recorded
+				// when processing the final map.
+				//
+				// Note that 'recordChanged' in this case exposes
+				// a weakness of how changes are recorded, in that
+				// the record has a bias towards the final key.
+
+				// V value_f = finalMap.get(key_f);
+
+				// if ( ((value_f == null) && (value_i != null)) ||
+				// ((value_f != null) && (value_i == null)) ||
+				// ((value_f != null) && (value_i != null) &&
+				// !value_i.equals(value_f)) ) {
+				// if ( changedMap_f != null ) {
+				// recordChanged(key_i, value_i, value_f);
+				// }
+				// } else {
+				// if ( stillMap != null ) {
+				// recordStill(initialKey, initialValue);
+				// }
+				// }
 			}
 		}
 	}
