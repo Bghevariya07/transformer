@@ -286,17 +286,17 @@ public class TestTransformClass extends CaptureTest {
 
 	protected static final String				PER_CLASS_OVERRIDE_PACKAGE_NAME	= "transformer.test.data2";
 
-	protected Map<String, Map<String, String>> toJakartaPerClassDirectStrings;
+	protected Map<String, Map<String, String>> JakartaDirectString;
 
 	public Map<String, Map<String, String>> toJakartaPerClassDirectStrings() {
-		if (toJakartaPerClassDirectStrings == null) {
-			toJakartaPerClassDirectStrings = new HashMap<>();
+		if (JakartaDirectString == null) {
+			JakartaDirectString = new HashMap<>();
 
 			Map<String, String> directStringsForClass = new HashMap<>();
 			directStringsForClass.put(JAVAX_SERVLET_PACKAGE_NAME, PER_CLASS_OVERRIDE_PACKAGE_NAME);
-			toJakartaPerClassDirectStrings.put(OVERRIDE_TARGET_RESOURCE_NAME, directStringsForClass);
+			JakartaDirectString.put(OVERRIDE_TARGET_RESOURCE_NAME, directStringsForClass);
 		}
-		return toJakartaPerClassDirectStrings;
+		return JakartaDirectString;
 	}
 
 	public void displayJakartaPerClassDirectStrings() {
