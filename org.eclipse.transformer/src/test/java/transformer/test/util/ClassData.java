@@ -47,7 +47,7 @@ public class ClassData {
 	private final String					superclassName;
 	private final String[]					interfaceNames;
 
-	private final Set<String>				classAnnotationNames;
+	private final String[]				classAnnotationNames;
 
 	private final Set<String>				fieldNames;
 	private final BiDiMap<String, String>	fieldAnnotationNames;
@@ -73,7 +73,7 @@ public class ClassData {
 		return interfaceNames;
 	}
 
-	public Set<String> getClassAnnotationNames() {
+	public String[] getClassAnnotationNames() {
 		return classAnnotationNames;
 	}
 
@@ -112,106 +112,112 @@ public class ClassData {
 	//
 
 	public ClassData(Class<?> testClass) {
-		this.hashText = getClass().getSimpleName() + "@" + Integer.toHexString(hashCode()) + "("
-			+ testClass.getSimpleName() + ")";
+		this.hashText = generateHashText(testClass);
 		this.simpleClassName = testClass.getSimpleName();
-
 		this.className = testClass.getName();
+		this.superclassName = (testClass.getSuperclass() != null) ? testClass.getSuperclass().getName() : null;
 
-		Class<?> useSuperclass = testClass.getSuperclass();
-		this.superclassName = ((useSuperclass == null) ? null : useSuperclass.getName());
+		this.interfaceNames = getInterfaceNames(testClass);
+		this.classAnnotationNames = getAnnotationNames(testClass.getDeclaredAnnotations());
 
-		Class<?>[] useInterfaces = testClass.getInterfaces();
-		String[] useInterfaceNames;
-		int numInterfaces = useInterfaces.length;
-		if (numInterfaces == 0) {
-			useInterfaceNames = EMPTY_STRING_ARRAY;
-		} else {
-			useInterfaceNames = new String[useInterfaces.length];
-			for (int interfaceNo = 0; interfaceNo < numInterfaces; interfaceNo++) {
-				useInterfaceNames[interfaceNo] = useInterfaces[interfaceNo].getName();
-			}
+		this.fieldNames = getFieldNames(testClass);
+		this.fieldAnnotationNames = getFieldAnnotationNames(testClass);
+
+		this.staticMethodDescs = getMethodDescriptions(testClass, true);
+		this.staticMethodAnnotationNames = getMethodAnnotationNames(testClass, true);
+		this.methodDescs = getMethodDescriptions(testClass, false);
+		this.methodAnnotationNames = getMethodAnnotationNames(testClass, false);
+
+		this.initDescs = getConstructorDescriptions(testClass);
+		this.initAnnotationNames = getConstructorAnnotationNames(testClass);
+	}
+
+	private String generateHashText(Class<?> testClass) {
+		return getClass().getSimpleName() + "@" + Integer.toHexString(hashCode()) + "(" + testClass.getSimpleName() + ")";
+	}
+
+	private String[] getInterfaceNames(Class<?> testClass) {
+		Class<?>[] interfaces = testClass.getInterfaces();
+		if (interfaces.length == 0) {
+			return EMPTY_STRING_ARRAY;
 		}
-		this.interfaceNames = useInterfaceNames;
+		String[] interfaceNames = new String[interfaces.length];
+		for (int i = 0; i < interfaces.length; i++) {
+			interfaceNames[i] = interfaces[i].getName();
+		}
+		return interfaceNames;
+	}
 
-		this.classAnnotationNames = getNames(testClass.getDeclaredAnnotations());
+	private String[] getAnnotationNames(Annotation[] annotations) {
+		String[] annotationNames = new String[annotations.length];
+		for (int i = 0; i < annotations.length; i++) {
+			annotationNames[i] = annotations[i].annotationType().getName();
+		}
+		return annotationNames;
+	}
 
-		Field[] useFields = testClass.getDeclaredFields();
-		int numFields = useFields.length;
-		Set<String> useFieldNames = new HashSet<>(numFields);
-		BiDiMap<String, String> useFieldAnnotationNames = new BiDiMapImpl<>(String.class, "field",
-			String.class, "annotation");
-		for (Field field : useFields) {
+	private Set<String> getFieldNames(Class<?> testClass) {
+		Field[] fields = testClass.getDeclaredFields();
+		Set<String> fieldNames = new HashSet<>(fields.length);
+		for (Field field : fields) {
+			fieldNames.add(field.getName());
+		}
+		return fieldNames;
+	}
+
+	private BiDiMap<String, String> getFieldAnnotationNames(Class<?> testClass) {
+		BiDiMap<String, String> fieldAnnotationNames = new BiDiMapImpl<>(String.class, "field", String.class, "annotation");
+		for (Field field : testClass.getDeclaredFields()) {
 			String fieldName = field.getName();
-			useFieldNames.add(fieldName);
-			for (Annotation anno : field.getAnnotations()) {
-				useFieldAnnotationNames.record(fieldName, anno.annotationType()
-					.getName());
+			for (Annotation annotation : field.getAnnotations()) {
+				fieldAnnotationNames.record(fieldName, annotation.annotationType().getName());
 			}
 		}
+		return fieldAnnotationNames;
+	}
 
-		this.fieldNames = useFieldNames;
-		this.fieldAnnotationNames = useFieldAnnotationNames;
-
-		Method[] useMethods = testClass.getDeclaredMethods();
-		int numStaticMethods = 0;
-		int numMethods = 0;
-		for (Method method : useMethods) {
-			if (isStatic(method)) {
-				numStaticMethods++;
-			} else {
-				numMethods++;
+	private Set<String> getMethodDescriptions(Class<?> testClass, boolean isStatic) {
+		Method[] methods = testClass.getDeclaredMethods();
+		Set<String> methodDescs = new HashSet<>(methods.length);
+		for (Method method : methods) {
+			if (isStatic == isStatic(method)) {
+				methodDescs.add(method.toString());
 			}
 		}
+		return methodDescs;
+	}
 
-		Set<String> useMethodDescs = new HashSet<>(numMethods);
-		Set<String> useStaticMethodDescs = new HashSet<>(numStaticMethods);
-
-		BiDiMap<String, String> useStaticMethodAnnotationNames = new BiDiMapImpl<>(String.class,
-			"static method", String.class, "annotation");
-		BiDiMap<String, String> useMethodAnnotationNames = new BiDiMapImpl<>(String.class, "method",
-			String.class, "annotation");
-
-		for (Method method : useMethods) {
-			String methodDesc = method.toString();
-			boolean isStatic = isStatic(method);
-
-			BiDiMap<String, String> useAnnotationNames;
-			if (isStatic) {
-				useStaticMethodDescs.add(methodDesc);
-				useAnnotationNames = useStaticMethodAnnotationNames;
-			} else {
-				useMethodDescs.add(methodDesc);
-				useAnnotationNames = useMethodAnnotationNames;
-			}
-
-			for (Annotation anno : method.getDeclaredAnnotations()) {
-				useAnnotationNames.record(methodDesc, anno.annotationType()
-					.getName());
+	private BiDiMap<String, String> getMethodAnnotationNames(Class<?> testClass, boolean isStatic) {
+		BiDiMap<String, String> methodAnnotationNames = new BiDiMapImpl<>(String.class, "method", String.class, "annotation");
+		for (Method method : testClass.getDeclaredMethods()) {
+			if (isStatic == isStatic(method)) {
+				String methodDesc = method.toString();
+				for (Annotation annotation : method.getDeclaredAnnotations()) {
+					methodAnnotationNames.record(methodDesc, annotation.annotationType().getName());
+				}
 			}
 		}
+		return methodAnnotationNames;
+	}
 
-		this.staticMethodDescs = useStaticMethodDescs;
-		this.staticMethodAnnotationNames = useStaticMethodAnnotationNames;
-		this.methodDescs = useMethodDescs;
-		this.methodAnnotationNames = useMethodAnnotationNames;
+	private Set<String> getConstructorDescriptions(Class<?> testClass) {
+		Constructor<?>[] constructors = testClass.getDeclaredConstructors();
+		Set<String> initDescs = new HashSet<>(constructors.length);
+		for (Constructor<?> constructor : constructors) {
+			initDescs.add(constructor.toString());
+		}
+		return initDescs;
+	}
 
-		Constructor<?>[] useInits = testClass.getDeclaredConstructors();
-		Set<String> useInitDescs = new HashSet<>(useInits.length);
-		BiDiMap<String, String> useInitAnnotationNames = new BiDiMapImpl<>(String.class, "init",
-			String.class, "annotation");
-
-		for (Constructor<?> init : useInits) {
-			String initDescription = init.toString();
-			useInitDescs.add(initDescription);
-			for (Annotation anno : init.getDeclaredAnnotations()) {
-				useInitAnnotationNames.record(initDescription, anno.annotationType()
-					.getName());
+	private BiDiMap<String, String> getConstructorAnnotationNames(Class<?> testClass) {
+		BiDiMap<String, String> initAnnotationNames = new BiDiMapImpl<>(String.class, "init", String.class, "annotation");
+		for (Constructor<?> constructor : testClass.getDeclaredConstructors()) {
+			String initDescription = constructor.toString();
+			for (Annotation annotation : constructor.getDeclaredAnnotations()) {
+				initAnnotationNames.record(initDescription, annotation.annotationType().getName());
 			}
 		}
-
-		this.initDescs = useInitDescs;
-		this.initAnnotationNames = useInitAnnotationNames;
+		return initAnnotationNames;
 	}
 
 	protected static boolean isStatic(Method method) {
@@ -244,7 +250,7 @@ public class ClassData {
 		writer.println(logPrefix + "Superclass name: " + superclassName);
 		writer.println(logPrefix + "Interface names: " + interfaceNames);
 
-		if (classAnnotationNames.isEmpty()) {
+		if (classAnnotationNames.length == 0) {
 			writer.println(logPrefix + "Class annotations: ** EMPTY **");
 		} else {
 			writer.println(logPrefix + "Class annotations:");
